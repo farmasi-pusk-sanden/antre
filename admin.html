@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Farmasi Puskesmas Sanden</title>
+    <style>
+        /* =========================================
+           1. PENGATURAN DASAR & DESAIN SISTEM
+           ========================================= */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: #f0f4f8; color: #333; }
+
+        /* =========================================
+           2. LAYAR LOGIN (PIN)
+           ========================================= */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #00695c; display: flex; justify-content: center; align-items: center;
+            z-index: 1000; flex-direction: column;
+        }
+        .login-box {
+            background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            text-align: center; width: 350px;
+        }
+        .login-box h2 { color: #00695c; margin-bottom: 20px; }
+        .login-box input {
+            width: 100%; padding: 15px; font-size: 20px; text-align: center;
+            border: 2px solid #ccc; border-radius: 8px; margin-bottom: 20px; letter-spacing: 5px;
+        }
+        .btn-login {
+            width: 100%; padding: 15px; font-size: 18px; font-weight: bold; color: white;
+            background-color: #00897b; border: none; border-radius: 8px; cursor: pointer;
+        }
+
+        /* =========================================
+           3. DASHBOARD ADMIN UTAMA
+           ========================================= */
+        #dashboard-screen { display: none; padding: 20px; max-width: 1000px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #ddd; padding-bottom: 15px; }
+        .header h1 { color: #004d40; }
+        
+        .btn-tambah {
+            background-color: #f39c12; color: white; padding: 15px 30px; font-size: 18px;
+            font-weight: bold; border: none; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;
+        }
+        .btn-tambah:active { transform: scale(0.95); }
+
+        /* Tabel Antrean */
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #00695c; color: white; }
+        
+        .badge { padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+        .bg-menunggu { background: #ffe0b2; color: #e65100; }
+        .bg-disiapkan { background: #fff9c4; color: #f57f17; }
+        .bg-siap { background: #c8e6c9; color: #2e7d32; }
+
+        /* Tombol Aksi */
+        .btn-aksi { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; margin-right: 5px; font-size: 13px; }
+        .btn-proses { background-color: #2980b9; }
+        .btn-panggil { background-color: #27ae60; }
+        .btn-selesai { background-color: #7f8c8d; }
+
+        /* =========================================
+           4. TOAST NOTIFICATION & OVERLAY LOADING
+           ========================================= */
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 8px; padding: 16px; position: fixed;
+            z-index: 999; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 16px;
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        #loading-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255,255,255,0.8); z-index: 2000; justify-content: center; align-items: center;
+            font-size: 24px; font-weight: bold; color: #00695c;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>Admin Farmasi</h2>
+            <input type="password" id="pin-input" placeholder="Masukkan PIN" maxlength="6">
+            <button class="btn-login" onclick="cekLogin()">Masuk</button>
+        </div>
+    </div>
+
+    <div id="dashboard-screen">
+        <div class="header">
+            <div>
+                <h1>Dashboard Petugas</h1>
+                <p>Kelola antrean secara real-time</p>
+            </div>
+            <button class="btn-tambah" onclick="tambahAntrean()">+ TAMBAH ANTREAN</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>No. Antrean</th>
+                    <th>Waktu Masuk</th>
+                    <th>Status Saat Ini</th>
+                    <th>Aksi Petugas</th>
+                </tr>
+            </thead>
+            <tbody id="tabel-antrean">
+                <tr><td colspan="4" style="text-align: center;">Memuat data...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="loading-overlay">Memproses ke Server...</div>
+    <div id="toast">Notifikasi</div>
+
+    <script>
+        // ==========================================
+        // KONFIGURASI API (WAJIB DIISI)
+        // ==========================================
+        const API_URL = "https://script.google.com/macros/s/AKfycbzAXuc2C_LBWemjKPTuALSL2-lswFWs5zMl_e7FWUFwe2Wh02j-2EBac20nvnYWXrhARg/exec"; 
+        const API_TOKEN = "SANDEN-FARMASI-2026"; // Harus sama persis dengan yang di Sheet 'Keamanan'
+        const PIN_ADMIN = "123456"; // PIN Sederhana untuk Frontend
+
+        // ==========================================
+        // FUNGSI UTILITAS (LOADING & TOAST)
+        // ==========================================
+        function showLoading(show) {
+            document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+        }
+
+        function showToast(pesan) {
+            const toast = document.getElementById("toast");
+            toast.innerText = pesan;
+            toast.className = "show";
+            setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 3000);
+        }
+
+        // ==========================================
+        // FUNGSI LOGIN
+        // ==========================================
+        function cekLogin() {
+            const input = document.getElementById('pin-input').value;
+            if (input === PIN_ADMIN) {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('dashboard-screen').style.display = 'block';
+                loadDataAntrean();
+                // Auto-refresh tabel admin setiap 15 detik
+                setInterval(loadDataAntrean, 15000);
+            } else {
+                alert("PIN Salah! Silakan coba lagi.");
+            }
+        }
+
+        // ==========================================
+        // FUNGSI TARIK DATA ANTREAN (GET)
+        // ==========================================
+        async function loadDataAntrean() {
+            if(API_URL === "https://script.google.com/macros/s/AKfycbzAXuc2C_LBWemjKPTuALSL2-lswFWs5zMl_e7FWUFwe2Wh02j-2EBac20nvnYWXrhARg/exec") return;
+            try {
+                let response = await fetch(`${API_URL}?action=getAntrean`);
+                let result = await response.json();
+                
+                let tbody = document.getElementById('tabel-antrean');
+                tbody.innerHTML = ""; // Bersihkan tabel
+
+                if(result.data.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Belum ada antrean hari ini.</td></tr>`;
+                    return;
+                }
+
+                result.data.forEach(d => {
+                    // Warna Badge Status
+                    let badgeClass = d.status === "Menunggu" ? "bg-menunggu" : 
+                                     d.status === "Sedang Disiapkan" ? "bg-disiapkan" : "bg-siap";
+
+                    // Tombol Aksi dinamis berdasarkan status
+                    let tombolAksi = "";
+                    if(d.status === "Menunggu") {
+                        tombolAksi = `<button class="btn-aksi btn-proses" onclick="ubahStatus('${d.id_antrean}', 'Sedang Disiapkan')">Racik Obat</button>`;
+                    } else if(d.status === "Sedang Disiapkan") {
+                        tombolAksi = `<button class="btn-aksi btn-panggil" onclick="ubahStatus('${d.id_antrean}', 'Siap Diambil')">Panggil Pasien</button>`;
+                    } else if(d.status === "Siap Diambil") {
+                        tombolAksi = `<button class="btn-aksi btn-selesai" onclick="ubahStatus('${d.id_antrean}', 'Selesai')">Selesaikan</button>`;
+                    }
+
+                    let row = `
+                        <tr>
+                            <td style="font-size: 20px; font-weight: bold;">${d.nomor}</td>
+                            <td>${d.waktu_masuk}</td>
+                            <td><span class="badge ${badgeClass}">${d.status}</span></td>
+                            <td>${tombolAksi}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (error) {
+                console.error("Gagal memuat tabel:", error);
+            }
+        }
+
+        // ==========================================
+        // FUNGSI TAMBAH & UBAH DATA (POST)
+        // ==========================================
+        async function sendPostRequest(payloadData) {
+            showLoading(true);
+            try {
+                // Menggunakan text/plain agar tidak memicu CORS error di GAS
+                let response = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "text/plain" },
+                    body: JSON.stringify(payloadData)
+                });
+                let result = await response.json();
+                
+                if (result.success) {
+                    showToast("Berhasil diproses!");
+                    loadDataAntrean(); // Segarkan tabel
+                } else {
+                    showToast("Gagal: " + result.error);
+                }
+            } catch (error) {
+                showToast("Terjadi kesalahan koneksi!");
+                console.error(error);
+            }
+            showLoading(false);
+        }
+
+        function tambahAntrean() {
+            const payload = {
+                action: "tambahAntrean",
+                token: API_TOKEN,
+                idPetugas: "P01"
+            };
+            sendPostRequest(payload);
+        }
+
+        function ubahStatus(idAntrean, statusBaru) {
+            // Konfirmasi khusus jika ingin menyelesaikan antrean
+            if(statusBaru === "Selesai") {
+                if(!confirm("Obat sudah diserahkan ke pasien? Antrean akan dihilangkan dari layar.")) return;
+            }
+
+            const payload = {
+                action: "ubahStatus",
+                token: API_TOKEN,
+                id_antrean: idAntrean,
+                status_baru: statusBaru,
+                idPetugas: "P01"
+            };
+            sendPostRequest(payload);
+        }
+    </script>
+</body>
+</html>
