@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Layar Antrean - Farmasi Puskesmas Sanden</title>
+    <style>
+        /* =========================================
+           1. PENGATURAN DASAR & FONT KHUSUS TV
+           ========================================= */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: #f4f7f6; overflow: hidden; /* Mencegah layar TV bisa di-scroll */ }
+
+        /* =========================================
+           2. LAYAR MULAI (TOMBOL IZIN AUDIO)
+           ========================================= */
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background-color: #00695c; display: flex; justify-content: center; align-items: center;
+            z-index: 9999; flex-direction: column; color: white;
+        }
+        #start-screen button {
+            padding: 20px 40px; font-size: 32px; font-weight: bold; border-radius: 15px;
+            background-color: #ffca28; color: #333; border: none; cursor: pointer;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2); transition: 0.3s;
+        }
+        #start-screen button:hover { transform: scale(1.05); }
+
+        /* =========================================
+           3. TATA LETAK SPLIT SCREEN (60:40)
+           ========================================= */
+        #main-screen {
+            display: none; /* Disembunyikan sebelum tombol Mulai diklik */
+            width: 100vw; height: 100vh; display: flex;
+        }
+
+        /* --- SISI KIRI: PANEL ANTREAN (60%) --- */
+        #left-panel {
+            width: 60%; background-color: #ffffff; display: flex; flex-direction: column;
+            border-right: 5px solid #e0e0e0;
+        }
+        
+        .header-puskesmas {
+            background-color: #00695c; color: white; padding: 20px; text-align: center;
+            font-size: 28px; font-weight: bold; letter-spacing: 2px;
+        }
+
+        /* Antrean Dipanggil (Sangat Besar) */
+        .now-calling-container {
+            flex: 2; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            border-bottom: 5px solid #e0e0e0; background-color: #e8f5e9;
+        }
+        .now-calling-title { font-size: 40px; color: #2e7d32; font-weight: 700; margin-bottom: 10px; }
+        #now-calling-number { font-size: 180px; font-weight: 900; color: #1b5e20; line-height: 1; text-shadow: 2px 4px 10px rgba(0,0,0,0.1); }
+
+        /* Antrean Disiapkan (Kotak Berjajar) */
+        .preparing-container {
+            flex: 1; padding: 20px; background-color: #fffde7; display: flex; flex-direction: column;
+        }
+        .preparing-title { font-size: 24px; color: #f57f17; font-weight: 700; margin-bottom: 15px; text-align: center; }
+        .preparing-grid {
+            display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
+        }
+        .prep-box {
+            background-color: #ffecb3; border: 3px solid #ffd54f; color: #e65100;
+            padding: 15px 30px; font-size: 40px; font-weight: bold; border-radius: 12px;
+        }
+
+        /* --- SISI KANAN: PANEL EDUKASI (40%) --- */
+        #right-panel {
+            width: 40%; background-color: #e0f7fa; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 40px; text-align: center;
+        }
+        #edu-kategori { font-size: 24px; color: #00838f; font-weight: bold; text-transform: uppercase; margin-bottom: 20px; }
+        #edu-judul { font-size: 45px; color: #006064; font-weight: 900; margin-bottom: 30px; line-height: 1.2; }
+        #edu-konten { font-size: 28px; color: #333; line-height: 1.5; }
+        
+        .footer-tv { position: absolute; bottom: 10px; right: 20px; font-size: 18px; color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <h1 style="margin-bottom: 20px;">Sistem Antrean Farmasi</h1>
+        <button id="btn-start" onclick="mulaiSistemTV()">Mulai Layar Antrean</button>
+        <p style="margin-top: 15px; font-size: 20px;">*Klik untuk mengaktifkan pemanggilan suara otomatis</p>
+    </div>
+
+    <div id="main-screen">
+        
+        <div id="left-panel">
+            <div class="header-puskesmas">LAYANAN FARMASI PUSKESMAS SANDEN</div>
+            
+            <div class="now-calling-container" id="blink-area">
+                <div class="now-calling-title">SILAKAN MENUJU LOKET</div>
+                <div id="now-calling-number">---</div>
+            </div>
+            
+            <div class="preparing-container">
+                <div class="preparing-title">SEDANG DISIAPKAN (MOHON TUNGGU)</div>
+                <div class="preparing-grid" id="prep-grid">
+                    <div class="prep-box">---</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="right-panel">
+            <div id="edu-kategori">Edukasi Kesehatan</div>
+            <div id="edu-judul">Memuat Informasi...</div>
+            <div id="edu-konten">Pastikan layar ini terkoneksi dengan internet.</div>
+            <div class="footer-tv">Farmasi Pintar - Puskesmas Sanden</div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // KONFIGURASI API (Ganti dengan URL dari GAS)
+        // ==========================================
+        const API_URL = "URL_WEB_APP_GAS_ANDA_DI_SINI";
+        
+        let lastCalledNumber = ""; // Untuk melacak apakah ada panggilan baru
+        let arrEdukasi = [];
+        let currentSlideIndex = 0;
+
+        // 1. Fungsi Memulai Sistem (Menutup Layar Awal & Mengizinkan Audio)
+        function mulaiSistemTV() {
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('main-screen').style.display = 'flex';
+            
+            // Pancingan Audio (Agar browser tahu TV ini boleh bersuara)
+            let msg = new SpeechSynthesisUtterance("Sistem antrean farmasi diaktifkan.");
+            msg.lang = 'id-ID';
+            window.speechSynthesis.speak(msg);
+
+            // Mulai Tarik Data Pertama Kali
+            fetchAntrean();
+            fetchEdukasi();
+
+            // Atur Jadwal Polling (Setiap 10 Detik untuk Antrean, 15 Detik untuk Ganti Slide)
+            setInterval(fetchAntrean, 10000); 
+            setInterval(gantiSlideEdukasi, 15000);
+        }
+
+        // 2. Fungsi Memanggil Suara (Text-to-Speech)
+        function panggilSuara(nomor) {
+            // Efek kedip pada layar
+            let blinkArea = document.getElementById('blink-area');
+            blinkArea.style.backgroundColor = "#c8e6c9";
+            setTimeout(() => blinkArea.style.backgroundColor = "#e8f5e9", 1000);
+
+            // Konversi A-01 menjadi "A... Nol... Satu" agar robot bicara jelas
+            let teksNomor = nomor.split('').join('... '); 
+            let kalimat = `Nomor antrean... ${teksNomor}..... silakan menuju loket farmasi.`;
+            
+            let msg = new SpeechSynthesisUtterance(kalimat);
+            msg.lang = 'id-ID';
+            msg.rate = 0.85; // Diperlambat sedikit agar jelas bagi lansia
+            msg.pitch = 1;
+            window.speechSynthesis.speak(msg);
+        }
+
+        // 3. Fungsi Menarik Data Antrean dari GAS
+        async function fetchAntrean() {
+            if(API_URL === "URL_WEB_APP_GAS_ANDA_DI_SINI") return; // Cegah error jika URL belum diganti
+
+            try {
+                let response = await fetch(`${API_URL}?action=getAntrean`);
+                let result = await response.json();
+                let data = result.data;
+
+                // Filter Data
+                let siapDiambil = data.filter(d => d.status === "Siap Diambil");
+                let sedangDisiapkan = data.filter(d => d.status === "Sedang Disiapkan");
+
+                // Update Layar "Sedang Dipanggil"
+                if (siapDiambil.length > 0) {
+                    // Ambil yang paling baru diubah statusnya (urutan terakhir di array)
+                    let currentCall = siapDiambil[siapDiambil.length - 1].nomor;
+                    document.getElementById('now-calling-number').innerText = currentCall;
+
+                    // Cek apakah ini nomor baru? Jika ya, bunyikan suara.
+                    if (currentCall !== lastCalledNumber) {
+                        panggilSuara(currentCall);
+                        lastCalledNumber = currentCall;
+                    }
+                } else {
+                    document.getElementById('now-calling-number').innerText = "---";
+                }
+
+                // Update Layar "Sedang Disiapkan" (Maksimal tampilkan 6 kotak agar rapi)
+                let gridHTML = "";
+                sedangDisiapkan.slice(0, 6).forEach(d => {
+                    gridHTML += `<div class="prep-box">${d.nomor}</div>`;
+                });
+                
+                if (gridHTML === "") gridHTML = `<div class="prep-box" style="opacity:0.3">Kosong</div>`;
+                document.getElementById('prep-grid').innerHTML = gridHTML;
+
+            } catch (error) {
+                console.log("Gagal mengambil data antrean:", error);
+            }
+        }
+
+        // 4. Fungsi Menarik Data Edukasi & Slideshow
+        async function fetchEdukasi() {
+            if(API_URL === "URL_WEB_APP_GAS_ANDA_DI_SINI") return;
+            try {
+                let response = await fetch(`${API_URL}?action=getEdukasi`);
+                let result = await response.json();
+                arrEdukasi = result.data;
+                gantiSlideEdukasi(); // Tampilkan slide pertama
+            } catch (error) {
+                console.log("Gagal mengambil data edukasi");
+            }
+        }
+
+        function gantiSlideEdukasi() {
+            if (arrEdukasi.length === 0) return;
+            
+            // Loop index kembali ke 0 jika sudah mencapai batas akhir
+            if (currentSlideIndex >= arrEdukasi.length) {
+                currentSlideIndex = 0;
+            }
+
+            let slide = arrEdukasi[currentSlideIndex];
+            
+            // Animasi Fade Sederhana
+            let panelRight = document.getElementById('right-panel');
+            panelRight.style.opacity = 0;
+            
+            setTimeout(() => {
+                document.getElementById('edu-kategori').innerText = slide.kategori;
+                document.getElementById('edu-judul').innerText = slide.judul;
+                document.getElementById('edu-konten').innerText = slide.ringkasan;
+                panelRight.style.opacity = 1;
+                panelRight.style.transition = "opacity 1s ease-in-out";
+            }, 500);
+
+            currentSlideIndex++;
+        }
+    </script>
+</body>
+</html>
